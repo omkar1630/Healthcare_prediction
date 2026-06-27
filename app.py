@@ -10,7 +10,7 @@ MODEL_PATH = "xgboost.pkl"
 with open(MODEL_PATH, "rb") as f:
     model = pickle.load(f)
 
-# Mappings to convert categorical interface values to numerical inputs for your XGBoost model
+# 1. Front-end mappings: Dropdown options mapped to model values
 GENDER_MAP = {"Male": 0, "Female": 1, "Other": 2}
 BLOOD_TYPE_MAP = {"A+": 0, "A-": 1, "B+": 2, "B-": 3, "AB+": 4, "AB-": 5, "O+": 6, "O-": 7}
 MEDICAL_CONDITION_MAP = {"Checkup": 0, "Diabetes": 1, "Hypertension": 2, "Asthma": 3, "Other": 4}
@@ -19,7 +19,14 @@ ADMISSION_MAP = {"Elective": 0, "Emergency": 1, "Urgent": 2}
 MEDICATION_MAP = {"None": 0, "Ibuprofen": 1, "Paracetamol": 2, "Penicillin": 3, "Other": 4}
 HOSPITAL_MAP = {"General Hospital": 0, "City Clinic": 1, "St. Jude": 2, "Mayo Clinic": 3, "Other": 4}
 
-# HTML Template layout written directly inside the Python string
+# 2. Update your Class 0 label here!
+PREDICTION_OUTPUT_MAP = {
+    0: "Normal / Healthy (No Treatment Required)", 
+    1: "Inpatient / Moderate Risk",
+    2: "Critical / High Risk"
+}
+
+# Tailwind HTML Layout
 HTML_LAYOUT = """
 <!DOCTYPE html>
 <html lang="en">
@@ -37,7 +44,7 @@ HTML_LAYOUT = """
             <div>
                 <h2 class="text-3xl font-extrabold tracking-tight mb-4">Analytics Engine</h2>
                 <p class="text-blue-100 text-sm leading-relaxed">
-                    Provide the medical patient parameters to evaluate class predictions instantaneously powered by your trained XGBoost Classifier architecture.
+                    Provide the medical patient parameters to evaluate class predictions instantaneously.
                 </p>
             </div>
             <div class="text-xs text-blue-200 mt-6 md:mt-0">
@@ -142,7 +149,7 @@ HTML_LAYOUT = """
             {% if prediction_text %}
             <div class="mt-6 p-4 bg-slate-100 border-l-4 border-emerald-500 rounded-r-lg">
                 <span class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Engine Result</span>
-                <p class="text-slate-800 font-medium text-lg mt-1">{{ prediction_text }}</p>
+                <p class="text-slate-800 font-semibold text-lg mt-1">{{ prediction_text }}</p>
             </div>
             {% endif %}
 
@@ -158,7 +165,7 @@ def home():
     prediction_text = None
     if request.method == "POST":
         try:
-            # 1. Fetch raw variables from form submission
+            # Parse form fields
             age = int(request.form.get("Age", 30))
             gender_str = request.form.get("Gender")
             blood_str = request.form.get("Blood_Type")
@@ -169,7 +176,7 @@ def home():
             admission_str = request.form.get("Admission_Type")
             medication_str = request.form.get("Medication")
 
-            # 2. Safety conversion from beautiful labels back to model numerical features
+            # Convert to numeric inputs
             gender = GENDER_MAP.get(gender_str, 0)
             blood_type = BLOOD_TYPE_MAP.get(blood_str, 0)
             medical_condition = MEDICAL_CONDITION_MAP.get(condition_str, 0)
@@ -178,15 +185,17 @@ def home():
             admission_type = ADMISSION_MAP.get(admission_str, 0)
             medication = MEDICATION_MAP.get(medication_str, 0)
 
-            # 3. Create structural configuration array matching your model's 9 features
+            # Build row vector
             features = np.array([[
                 age, gender, blood_type, medical_condition, 
                 hospital, insurance, billing, admission_type, medication
             ]])
 
-            # 4. Generate the prediction class output
-            pred = model.predict(features)[0]
-            prediction_text = f"Predicted Health Outcome/Class: {pred}"
+            # Predict raw numerical outcome
+            raw_prediction = int(model.predict(features)[0])
+            
+            # Look up label from dictionary map
+            prediction_text = PREDICTION_OUTPUT_MAP.get(raw_prediction, f"Unknown Class ({raw_prediction})")
 
         except Exception as e:
             prediction_text = f"Error processing prediction: {str(e)}"
